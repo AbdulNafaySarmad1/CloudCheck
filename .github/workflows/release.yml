@@ -134,8 +134,22 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
       - uses: Swatinem/rust-cache@v2
       - run: npm ci
+      - name: Verify Windows release candidate
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          npm run version:check
+          npm run typecheck
+          npm run lint
+          npm run test
+          npm run build
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
       - run: npm run tauri -- build --bundles ${{ matrix.bundles }}
       - name: Collect Windows packages
         if: matrix.platform == 'windows'
@@ -185,12 +199,25 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Require protected signing configuration
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PFX_BASE64) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_TIMESTAMP_URL)) { throw "Windows production signing configuration is incomplete." }
       - run: npm ci
+      - name: Verify Windows release candidate
+        shell: pwsh
+        run: |
+          npm run version:check
+          npm run typecheck
+          npm run lint
+          npm run test
+          npm run build
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
       - run: npm run tauri -- build --bundles msi,nsis
       - name: Verify and collect Authenticode packages
         shell: pwsh
