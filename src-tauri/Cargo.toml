@@ -38,5 +38,8 @@ thiserror = "2"
 url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+
 [dev-dependencies]
 tempfile = "3"
