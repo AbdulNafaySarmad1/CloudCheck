@@ -28,6 +28,13 @@
     "targets": "all",
     "category": "DeveloperTool",
     "shortDescription": "Deterministic cloud configuration security scanner",
-    "longDescription": "Local-first AWS configuration security scanner with prioritized remediation."
+    "longDescription": "Local-first AWS configuration security scanner with prioritized remediation.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   }
 }
