@@ -1,0 +1,23 @@
+{
+  "policy": "Fail on every vulnerability and every new or unreviewed informational advisory.",
+  "reviewBy": "2026-11-30",
+  "reviewedInformationalAdvisories": [
+    { "id": "RUSTSEC-2024-0429", "kind": "unsound", "dependency": "glib 0.18.5" },
+    { "id": "RUSTSEC-2024-0411", "kind": "unmaintained", "dependency": "gdkwayland-sys 0.18.2" },
+    { "id": "RUSTSEC-2024-0412", "kind": "unmaintained", "dependency": "gdk 0.18.2" },
+    { "id": "RUSTSEC-2024-0413", "kind": "unmaintained", "dependency": "atk 0.18.2" },
+    { "id": "RUSTSEC-2024-0414", "kind": "unmaintained", "dependency": "gdkx11-sys 0.18.2" },
+    { "id": "RUSTSEC-2024-0415", "kind": "unmaintained", "dependency": "gtk 0.18.2" },
+    { "id": "RUSTSEC-2024-0416", "kind": "unmaintained", "dependency": "atk-sys 0.18.2" },
+    { "id": "RUSTSEC-2024-0417", "kind": "unmaintained", "dependency": "gdkx11 0.18.2" },
+    { "id": "RUSTSEC-2024-0418", "kind": "unmaintained", "dependency": "gdk-sys 0.18.2" },
+    { "id": "RUSTSEC-2024-0419", "kind": "unmaintained", "dependency": "gtk3-macros 0.18.2" },
+    { "id": "RUSTSEC-2024-0420", "kind": "unmaintained", "dependency": "gtk-sys 0.18.2" },
+    { "id": "RUSTSEC-2024-0370", "kind": "unmaintained", "dependency": "proc-macro-error 1.0.4" },
+    { "id": "RUSTSEC-2025-0075", "kind": "unmaintained", "dependency": "unic-char-range 0.9.0" },
+    { "id": "RUSTSEC-2025-0080", "kind": "unmaintained", "dependency": "unic-common 0.9.0" },
+    { "id": "RUSTSEC-2025-0081", "kind": "unmaintained", "dependency": "unic-char-property 0.9.0" },
+    { "id": "RUSTSEC-2025-0098", "kind": "unmaintained", "dependency": "unic-ucd-version 0.9.0" },
+    { "id": "RUSTSEC-2025-0100", "kind": "unmaintained", "dependency": "unic-ucd-ident 0.9.0" }
+  ]
+}

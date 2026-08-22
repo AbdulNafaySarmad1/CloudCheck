@@ -1,0 +1,45 @@
+/target
+/node_modules
+/dist
+/frontend-dist
+*.tsbuildinfo
+/artifacts/*
+!/artifacts/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+*.p12
+*.cer
+*.crt
+*.mobileprovision
+*.asc
+
+# Platform and release output
+.DS_Store
+Thumbs.db
+*.dmg
+*.app/
+*.msi
+*.exe
+*.deb
+*.rpm
+*.AppImage
+*.sig
+*.sha256
+*.sarif
+*.spdx.json
+*.cdx.json
+release-manifest*.json
+
+# Local reports and temporary files
+/reports/
+/tmp/
+*.log

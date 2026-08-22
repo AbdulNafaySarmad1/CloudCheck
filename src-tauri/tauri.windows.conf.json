@@ -1,0 +1,19 @@
+{
+  "bundle": {
+    "windows": {
+      "digestAlgorithm": "sha256",
+      "signCommand": {
+        "cmd": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "../scripts/sign-file-windows.ps1",
+          "-FilePath",
+          "%1"
+        ]
+      }
+    }
+  }
+}

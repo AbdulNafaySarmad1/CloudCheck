@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Nocturne CloudCheck",
+  "version": "0.1.0",
+  "identifier": "com.nocturne.cloudcheck",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "frontendDist": "../frontend-dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Nocturne CloudCheck",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset:; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "Deterministic cloud configuration security scanner",
+    "longDescription": "Local-first AWS configuration security scanner with prioritized remediation."
+  }
+}

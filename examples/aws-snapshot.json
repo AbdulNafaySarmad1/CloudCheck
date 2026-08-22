@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "provider": "aws",
+  "account_id": "123456789012",
+  "scope": ["global", "us-east-1"],
+  "resources": [
+    {
+      "id": "arn:aws:s3:::example-bucket",
+      "kind": "s3_bucket",
+      "region": "us-east-1",
+      "properties": {
+        "public": false,
+        "encryption_enabled": true
+      }
+    },
+    {
+      "id": "arn:aws:iam::123456789012:policy/example",
+      "kind": "iam_policy",
+      "region": null,
+      "properties": {
+        "actions": ["s3:GetObject"],
+        "resources": ["arn:aws:s3:::example-bucket/*"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,287 @@
+name: Native release candidates
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Build mode; signed-release requires protected signing secrets
+        type: choice
+        required: true
+        default: unsigned-validation
+        options:
+          - unsigned-validation
+          - signed-release
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Release version gate
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run version:check
+      - id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Require tag/version match
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: test "${GITHUB_REF_NAME}" = "v${{ steps.version.outputs.version }}"
+
+  linux:
+    name: Linux deb and rpm
+    needs: version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev patchelf rpm
+      - run: npm ci
+      - run: npm run tauri -- build --bundles deb,rpm
+      - name: Verify package metadata and contents
+        run: |
+          dpkg-deb --info target/release/bundle/deb/*.deb
+          dpkg-deb --contents target/release/bundle/deb/*.deb
+          rpm -qip target/release/bundle/rpm/*.rpm
+          rpm -qlp target/release/bundle/rpm/*.rpm
+      - name: Collect packages
+        run: |
+          mkdir -p artifacts/release
+          cp target/release/bundle/deb/*.deb artifacts/release/
+          cp target/release/bundle/rpm/*.rpm artifacts/release/
+      - name: Generate manifest and checksums
+        env:
+          RELEASE_PLATFORM: linux
+          RELEASE_ARCH: x86_64
+          RELEASE_SIGNING_STATE: unsigned-package
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: npm run release:manifest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudcheck-${{ needs.version.outputs.version }}-linux-x86_64
+          path: artifacts/release/
+          if-no-files-found: error
+          retention-days: 90
+
+  sbom:
+    name: Release CycloneDX SBOM
+    needs: version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npm run sbom:node
+      - run: cargo install cargo-cyclonedx --locked --version 0.5.9
+      - run: npm run sbom:rust
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudcheck-${{ needs.version.outputs.version }}-sbom
+          path: artifacts/sbom/*.cdx.json
+          if-no-files-found: error
+          retention-days: 90
+
+  unsigned-native-validation:
+    name: Unsigned validation (${{ matrix.platform }})
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'unsigned-validation'
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            platform: windows
+            arch: x86_64
+            bundles: msi,nsis
+          - os: macos-15
+            platform: macos
+            arch: arm64
+            bundles: app,dmg
+    runs-on: ${{ matrix.os }}
+    env:
+      NOCTURNE_WINDOWS_SIGNING_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: npm run tauri -- build --bundles ${{ matrix.bundles }}
+      - name: Collect Windows packages
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/release | Out-Null
+          Get-ChildItem target/release/bundle -Recurse -File -Include *.msi,*.exe | Copy-Item -Destination artifacts/release
+      - name: Collect macOS package
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          mkdir -p artifacts/release
+          cp target/release/bundle/dmg/*.dmg artifacts/release/
+          tar -czf artifacts/release/Nocturne-CloudCheck-${{ needs.version.outputs.version }}-unsigned.app.tar.gz -C target/release/bundle/macos "Nocturne CloudCheck.app"
+      - name: Generate manifest and checksums
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+          RELEASE_ARCH: ${{ matrix.arch }}
+          RELEASE_SIGNING_STATE: unsigned-validation
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: npm run release:manifest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudcheck-${{ needs.version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}-unsigned
+          path: artifacts/release/
+          if-no-files-found: error
+          retention-days: 30
+
+  signed-windows:
+    name: Signed Windows msi and NSIS
+    if: github.event_name == 'push' || inputs.mode == 'signed-release'
+    needs: version
+    runs-on: windows-2025
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      NOCTURNE_WINDOWS_SIGNING_ENABLED: "true"
+      WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Require protected signing configuration
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PFX_BASE64) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_TIMESTAMP_URL)) { throw "Windows production signing configuration is incomplete." }
+      - run: npm ci
+      - run: npm run tauri -- build --bundles msi,nsis
+      - name: Verify and collect Authenticode packages
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/release | Out-Null
+          $files = Get-ChildItem target/release/bundle -Recurse -File -Include *.msi,*.exe
+          if (-not $files) { throw "No Windows installers were produced." }
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature $file.FullName
+            if ($signature.Status -ne "Valid") { throw "Invalid Authenticode signature: $($file.Name): $($signature.Status)" }
+            if (-not $signature.TimeStamperCertificate) { throw "Missing trusted timestamp: $($file.Name)" }
+            Copy-Item $file.FullName -Destination artifacts/release
+          }
+      - name: Generate manifest and checksums
+        env:
+          RELEASE_PLATFORM: windows
+          RELEASE_ARCH: x86_64
+          RELEASE_SIGNING_STATE: signed-authenticode-verified
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: npm run release:manifest
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: artifacts/release/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudcheck-${{ needs.version.outputs.version }}-windows-x86_64-signed
+          path: artifacts/release/
+          if-no-files-found: error
+          retention-days: 90
+
+  signed-macos:
+    name: Signed and notarized macOS app and dmg
+    if: github.event_name == 'push' || inputs.mode == 'signed-release'
+    needs: version
+    runs-on: macos-15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Require protected signing and notarization configuration
+        shell: bash
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            test -n "${!name}" || { echo "Missing required macOS release value: $name" >&2; exit 1; }
+          done
+      - run: npm ci
+      - run: npm run tauri -- build --bundles app,dmg
+      - name: Verify signing, notarization, and stapling
+        shell: bash
+        run: |
+          codesign --verify --deep --strict --verbose=2 "target/release/bundle/macos/Nocturne CloudCheck.app"
+          shopt -s nullglob
+          images=(target/release/bundle/dmg/*.dmg)
+          test "${#images[@]}" -eq 1
+          xcrun stapler staple "${images[0]}"
+          xcrun stapler validate "${images[0]}"
+          spctl --assess --type open --context context:primary-signature -vv "${images[0]}"
+      - name: Collect signed packages
+        shell: bash
+        run: |
+          mkdir -p artifacts/release
+          cp target/release/bundle/dmg/*.dmg artifacts/release/
+          tar -czf artifacts/release/Nocturne-CloudCheck-${{ needs.version.outputs.version }}-signed-notarized.app.tar.gz -C target/release/bundle/macos "Nocturne CloudCheck.app"
+      - name: Generate manifest and checksums
+        env:
+          RELEASE_PLATFORM: macos
+          RELEASE_ARCH: arm64
+          RELEASE_SIGNING_STATE: signed-notarized-stapled-verified
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: npm run release:manifest
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: artifacts/release/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudcheck-${{ needs.version.outputs.version }}-macos-arm64-signed-notarized
+          path: artifacts/release/
+          if-no-files-found: error
+          retention-days: 90
